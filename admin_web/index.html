@@ -1,0 +1,832 @@
+<!DOCTYPE html>
+<html lang="uz">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Barbershop Admin Control Center</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css" rel="stylesheet">
+  <style>
+    body { background-color: #0f172a; color: #f8fafc; font-family: 'Inter', system-ui, sans-serif; }
+    .glass { background: rgba(30, 41, 59, 0.85); backdrop-filter: blur(12px); border: 1px solid rgba(148, 163, 184, 0.15); }
+    ::-webkit-scrollbar { width: 6px; height: 6px; }
+    ::-webkit-scrollbar-thumb { background: #475569; border-radius: 4px; }
+  </style>
+</head>
+<body class="min-h-screen">
+
+  <!-- LOGIN / FIREBASE SETUP SCREEN -->
+  <div id="authScreen" class="min-h-screen flex items-center justify-center p-4">
+    <div class="glass max-w-md w-full rounded-2xl p-8 shadow-2xl">
+      <div class="text-center mb-6">
+        <div class="w-16 h-16 bg-amber-500/20 text-amber-400 rounded-2xl flex items-center justify-center mx-auto mb-3 text-3xl">
+          <i class="fa-solid fa-scissors"></i>
+        </div>
+        <h1 class="text-2xl font-bold text-white">Barbershop Admin</h1>
+        <p class="text-slate-400 text-sm mt-1">Boshqaruv paneliga kirish (Faqat egasi uchun)</p>
+      </div>
+
+      <form id="loginForm" class="space-y-4">
+        <div>
+          <label class="block text-xs font-medium text-slate-300 mb-1">Firebase Realtime Database URL</label>
+          <input type="url" id="fbUrlInput" required placeholder="https://loyiha-default-rtdb.firebaseio.com"
+            class="w-full px-3.5 py-2.5 bg-slate-900 border border-slate-700 rounded-xl text-sm text-white focus:border-amber-500 focus:outline-none" />
+        </div>
+        <div>
+          <label class="block text-xs font-medium text-slate-300 mb-1">Admin Parol</label>
+          <input type="password" id="adminPassInput" required placeholder="••••••••"
+            class="w-full px-3.5 py-2.5 bg-slate-900 border border-slate-700 rounded-xl text-sm text-white focus:border-amber-500 focus:outline-none" />
+          <p class="text-[11px] text-slate-400 mt-1">Birinchi marta kirishda yangi admin parol o'rnatiladi.</p>
+        </div>
+        <p id="authError" class="text-rose-400 text-xs hidden"></p>
+        <button type="submit" class="w-full py-3 bg-amber-500 hover:bg-amber-600 text-slate-950 font-bold rounded-xl transition">
+          <i class="fa-solid fa-lock-open mr-2"></i> Tizimga kirish
+        </button>
+      </form>
+    </div>
+  </div>
+
+  <!-- MAIN ADMIN DASHBOARD -->
+  <div id="dashboardScreen" class="hidden min-h-screen flex flex-col">
+    <!-- Top Navbar -->
+    <header class="glass sticky top-0 z-30 px-6 py-3.5 flex flex-wrap items-center justify-between gap-4">
+      <div class="flex items-center gap-3">
+        <div class="w-10 h-10 bg-amber-500 text-slate-950 rounded-xl flex items-center justify-center font-bold text-lg">
+          <i class="fa-solid fa-scissors"></i>
+        </div>
+        <div>
+          <h1 id="headerShopName" class="font-bold text-lg leading-tight">Elite Barbershop</h1>
+          <span class="text-xs text-emerald-400 flex items-center gap-1.5">
+            <span class="w-2 h-2 rounded-full bg-emerald-400 animate-pulse"></span> Firebase Live Sinxron
+          </span>
+        </div>
+      </div>
+
+      <!-- Navigation Tabs -->
+      <nav class="flex flex-wrap gap-1.5 bg-slate-900/90 p-1.5 rounded-xl border border-slate-800">
+        <button onclick="switchTab('schedule')" id="tab-schedule" class="tab-btn px-4 py-2 rounded-lg text-sm font-medium bg-amber-500 text-slate-950">
+          <i class="fa-solid fa-calendar-days mr-1.5"></i> Jonli Jadval
+        </button>
+        <button onclick="switchTab('barbers')" id="tab-barbers" class="tab-btn px-4 py-2 rounded-lg text-sm font-medium text-slate-300 hover:text-white">
+          <i class="fa-solid fa-user-tie mr-1.5"></i> Barberlar
+        </button>
+        <button onclick="switchTab('services')" id="tab-services" class="tab-btn px-4 py-2 rounded-lg text-sm font-medium text-slate-300 hover:text-white">
+          <i class="fa-solid fa-tags mr-1.5"></i> Xizmatlar
+        </button>
+        <button onclick="switchTab('hours')" id="tab-hours" class="tab-btn px-4 py-2 rounded-lg text-sm font-medium text-slate-300 hover:text-white">
+          <i class="fa-solid fa-clock mr-1.5"></i> Vaqt & Sozlamalar
+        </button>
+        <button onclick="switchTab('clients')" id="tab-clients" class="tab-btn px-4 py-2 rounded-lg text-sm font-medium text-slate-300 hover:text-white">
+          <i class="fa-solid fa-users mr-1.5"></i> Mijozlar
+        </button>
+      </nav>
+
+      <button onclick="logout()" class="px-3.5 py-2 bg-slate-800 hover:bg-rose-600/80 text-slate-300 hover:text-white rounded-xl text-xs font-medium transition">
+        <i class="fa-solid fa-right-from-bracket mr-1"></i> Chiqish
+      </button>
+    </header>
+
+    <!-- Main Content -->
+    <main class="flex-1 p-4 md:p-6 max-w-7xl w-full mx-auto">
+
+      <!-- TAB 1: JONLI JADVAL (LIVE SCHEDULE MATRIX) -->
+      <section id="view-schedule" class="space-y-6">
+        <!-- Stats & Date Picker Bar -->
+        <div class="grid grid-cols-1 md:grid-cols-4 gap-4">
+          <div class="glass p-4 rounded-2xl flex items-center justify-between">
+            <div>
+              <p class="text-xs text-slate-400">Tanlangan sana</p>
+              <input type="date" id="scheduleDate" class="mt-1 bg-slate-900 border border-slate-700 rounded-lg px-3 py-1.5 text-sm font-semibold text-white focus:border-amber-500 focus:outline-none" />
+            </div>
+            <button onclick="setToday()" class="px-3 py-1.5 bg-amber-500/20 text-amber-400 hover:bg-amber-500/30 rounded-lg text-xs font-semibold">
+              Bugun
+            </button>
+          </div>
+
+          <div class="glass p-4 rounded-2xl">
+            <p class="text-xs text-slate-400">Kunlik buyurtmalar</p>
+            <p id="statBookings" class="text-2xl font-bold text-white mt-1">0 ta</p>
+          </div>
+
+          <div class="glass p-4 rounded-2xl">
+            <p class="text-xs text-slate-400">Kutilayotgan tushum</p>
+            <p id="statRevenue" class="text-2xl font-bold text-emerald-400 mt-1">0 so'm</p>
+          </div>
+
+          <div class="glass p-4 rounded-2xl flex items-center justify-between">
+            <div>
+              <p class="text-xs text-slate-400">Tezkor boshqaruv</p>
+              <p class="text-xs text-slate-300 mt-1">Bo'sh katakchani bosing — zakaz/yopish</p>
+            </div>
+            <i class="fa-solid fa-hand-pointer text-amber-400 text-xl"></i>
+          </div>
+        </div>
+
+        <!-- Matrix Table -->
+        <div class="glass rounded-2xl overflow-hidden shadow-xl">
+          <div class="overflow-x-auto">
+            <table class="w-full text-left border-collapse">
+              <thead>
+                <tr id="matrixHead" class="bg-slate-900/90 border-b border-slate-800 text-xs uppercase text-slate-400">
+                  <th class="p-4 w-24">Vaqt</th>
+                </tr>
+              </thead>
+              <tbody id="matrixBody" class="divide-y divide-slate-800/70 text-sm"></tbody>
+            </table>
+          </div>
+        </div>
+      </section>
+
+      <!-- TAB 2: BARBERLAR BOSHQARUVI -->
+      <section id="view-barbers" class="hidden space-y-6">
+        <div class="flex justify-between items-center">
+          <h2 class="text-xl font-bold">Barberlar jamoasi</h2>
+          <button onclick="openBarberModal()" class="px-4 py-2.5 bg-amber-500 hover:bg-amber-600 text-slate-950 font-bold rounded-xl text-sm">
+            <i class="fa-solid fa-plus mr-1.5"></i> Yangi barber qo'shish
+          </button>
+        </div>
+        <div id="barbersGrid" class="grid grid-cols-1 md:grid-cols-3 gap-4"></div>
+      </section>
+
+      <!-- TAB 3: XIZMATLAR VA NARXLAR -->
+      <section id="view-services" class="hidden space-y-6">
+        <div class="flex justify-between items-center">
+          <h2 class="text-xl font-bold">Xizmatlar va Narxlar</h2>
+          <button onclick="openServiceModal()" class="px-4 py-2.5 bg-amber-500 hover:bg-amber-600 text-slate-950 font-bold rounded-xl text-sm">
+            <i class="fa-solid fa-plus mr-1.5"></i> Yangi xizmat qo'shish
+          </button>
+        </div>
+        <div id="servicesGrid" class="grid grid-cols-1 md:grid-cols-3 gap-4"></div>
+      </section>
+
+      <!-- TAB 4: VAQT MENEJMENTI VA SOZLAMALAR -->
+      <section id="view-hours" class="hidden max-w-2xl space-y-6">
+        <div class="glass p-6 rounded-2xl space-y-5">
+          <h2 class="text-xl font-bold border-b border-slate-800 pb-3">Ish vaqti va Dam olish kunlari</h2>
+          <div class="grid grid-cols-2 gap-4">
+            <div>
+              <label class="block text-xs text-slate-400 mb-1">Ish boshlanishi</label>
+              <input type="time" id="cfgStart" class="w-full bg-slate-900 border border-slate-700 rounded-xl px-3 py-2 text-white" />
+            </div>
+            <div>
+              <label class="block text-xs text-slate-400 mb-1">Ish tugashi</label>
+              <input type="time" id="cfgEnd" class="w-full bg-slate-900 border border-slate-700 rounded-xl px-3 py-2 text-white" />
+            </div>
+            <div>
+              <label class="block text-xs text-slate-400 mb-1">Doimiy tushlik (boshlanishi)</label>
+              <input type="time" id="cfgLunchStart" class="w-full bg-slate-900 border border-slate-700 rounded-xl px-3 py-2 text-white" />
+            </div>
+            <div>
+              <label class="block text-xs text-slate-400 mb-1">Doimiy tushlik (tugashi)</label>
+              <input type="time" id="cfgLunchEnd" class="w-full bg-slate-900 border border-slate-700 rounded-xl px-3 py-2 text-white" />
+            </div>
+          </div>
+
+          <div>
+            <label class="block text-xs text-slate-400 mb-2">Haftalik dam olish kunlari (Mijozlarga yopiq bo'ladi)</label>
+            <div class="flex flex-wrap gap-2" id="weekdayCheckboxes"></div>
+          </div>
+
+          <h3 class="text-lg font-bold border-b border-slate-800 pb-2 pt-2">Barbershop Ma'lumotlari</h3>
+          <div class="space-y-3">
+            <div>
+              <label class="block text-xs text-slate-400 mb-1">Barbershop nomi</label>
+              <input type="text" id="cfgShopName" class="w-full bg-slate-900 border border-slate-700 rounded-xl px-3 py-2 text-white" />
+            </div>
+            <div>
+              <label class="block text-xs text-slate-400 mb-1">Manzil</label>
+              <input type="text" id="cfgAddress" class="w-full bg-slate-900 border border-slate-700 rounded-xl px-3 py-2 text-white" />
+            </div>
+            <div>
+              <label class="block text-xs text-slate-400 mb-1">Aloqa telefoni</label>
+              <input type="text" id="cfgPhone" class="w-full bg-slate-900 border border-slate-700 rounded-xl px-3 py-2 text-white" />
+            </div>
+          </div>
+
+          <button onclick="saveGeneralSettings()" class="w-full py-3 bg-amber-500 hover:bg-amber-600 text-slate-950 font-bold rounded-xl">
+            <i class="fa-solid fa-floppy-disk mr-1.5"></i> Barcha sozlamalarni saqlash
+          </button>
+        </div>
+      </section>
+
+      <!-- TAB 5: MIJOZLAR BAZASI VA QORA RO'YXAT -->
+      <section id="view-clients" class="hidden space-y-4">
+        <h2 class="text-xl font-bold">Telegram Bot Mijozlari</h2>
+        <div class="glass rounded-2xl overflow-hidden">
+          <table class="w-full text-left text-sm">
+            <thead class="bg-slate-900/90 text-xs uppercase text-slate-400">
+              <tr>
+                <th class="p-4">Mijoz</th>
+                <th class="p-4">Telefon</th>
+                <th class="p-4">Username</th>
+                <th class="p-4">Holat</th>
+                <th class="p-4 text-right">Amal</th>
+              </tr>
+            </thead>
+            <tbody id="clientsBody" class="divide-y divide-slate-800"></tbody>
+          </table>
+        </div>
+      </section>
+    </main>
+  </div>
+
+  <!-- MODAL: OFFLINE ZAKAZ / VAQTNI YOPISH -->
+  <div id="slotModal" class="fixed inset-0 bg-black/70 hidden items-center justify-center p-4 z-50">
+    <div class="glass max-w-md w-full rounded-2xl p-6 space-y-4">
+      <div class="flex justify-between items-center">
+        <h3 id="slotModalTitle" class="text-lg font-bold">Vaqtni boshqarish</h3>
+        <button onclick="closeModal('slotModal')" class="text-slate-400 hover:text-white"><i class="fa-solid fa-xmark text-xl"></i></button>
+      </div>
+      <p id="slotModalSub" class="text-xs text-amber-400"></p>
+
+      <div id="slotFreeForm" class="space-y-3">
+        <div>
+          <label class="block text-xs text-slate-400 mb-1">Amal turi</label>
+          <select id="manualType" onchange="toggleManualFields()" class="w-full bg-slate-900 border border-slate-700 rounded-xl px-3 py-2 text-sm text-white">
+            <option value="offline">👤 Offline mijoz yozish (Telefon / Kelgan mijoz)</option>
+            <option value="block">🔒 Vaqtni yopish (Tanaffus / Band)</option>
+          </select>
+        </div>
+        <div id="offlineClientFields" class="space-y-3">
+          <div>
+            <label class="block text-xs text-slate-400 mb-1">Xizmat turi</label>
+            <select id="manualService" class="w-full bg-slate-900 border border-slate-700 rounded-xl px-3 py-2 text-sm text-white"></select>
+          </div>
+          <div>
+            <label class="block text-xs text-slate-400 mb-1">Mijoz ismi</label>
+            <input type="text" id="manualName" placeholder="Masalan: Alisher" class="w-full bg-slate-900 border border-slate-700 rounded-xl px-3 py-2 text-sm text-white" />
+          </div>
+          <div>
+            <label class="block text-xs text-slate-400 mb-1">Telefon raqami</label>
+            <input type="text" id="manualPhone" placeholder="+998 90 123 45 67" class="w-full bg-slate-900 border border-slate-700 rounded-xl px-3 py-2 text-sm text-white" />
+          </div>
+        </div>
+        <button onclick="submitManualSlot()" class="w-full py-2.5 bg-amber-500 hover:bg-amber-600 text-slate-950 font-bold rounded-xl text-sm">
+          Saqlash
+        </button>
+      </div>
+
+      <div id="slotBookedInfo" class="hidden space-y-3">
+        <div id="bookedDetails" class="bg-slate-900/90 p-4 rounded-xl text-sm space-y-1.5 border border-slate-800"></div>
+        <button onclick="cancelBookedSlot()" class="w-full py-2.5 bg-rose-600 hover:bg-rose-700 text-white font-bold rounded-xl text-sm">
+          <i class="fa-solid fa-trash mr-1.5"></i> Navbatni bekor qilish va vaqtni ochish
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- MODAL: BARBER QO'SHISH/TAHRIRLASH -->
+  <div id="barberModal" class="fixed inset-0 bg-black/70 hidden items-center justify-center p-4 z-50">
+    <div class="glass max-w-md w-full rounded-2xl p-6 space-y-4">
+      <div class="flex justify-between items-center">
+        <h3 class="text-lg font-bold">Barber ma'lumotlari</h3>
+        <button onclick="closeModal('barberModal')" class="text-slate-400 hover:text-white"><i class="fa-solid fa-xmark text-xl"></i></button>
+      </div>
+      <input type="hidden" id="editBarberId" />
+      <div>
+        <label class="block text-xs text-slate-400 mb-1">Ism va unvon</label>
+        <input type="text" id="barberName" placeholder="Jasur (Top Master)" class="w-full bg-slate-900 border border-slate-700 rounded-xl px-3 py-2 text-sm text-white" />
+      </div>
+      <div>
+        <label class="block text-xs text-slate-400 mb-1">Mutaxassisligi</label>
+        <input type="text" id="barberSpec" placeholder="Fade, Soqol dizayni..." class="w-full bg-slate-900 border border-slate-700 rounded-xl px-3 py-2 text-sm text-white" />
+      </div>
+      <div>
+        <label class="block text-xs text-slate-400 mb-1">Tajribasi</label>
+        <input type="text" id="barberExp" placeholder="5 yillik tajriba" class="w-full bg-slate-900 border border-slate-700 rounded-xl px-3 py-2 text-sm text-white" />
+      </div>
+      <button onclick="saveBarber()" class="w-full py-2.5 bg-amber-500 hover:bg-amber-600 text-slate-950 font-bold rounded-xl text-sm">
+        Saqlash
+      </button>
+    </div>
+  </div>
+
+  <!-- MODAL: XIZMAT QO'SHISH/TAHRIRLASH -->
+  <div id="serviceModal" class="fixed inset-0 bg-black/70 hidden items-center justify-center p-4 z-50">
+    <div class="glass max-w-md w-full rounded-2xl p-6 space-y-4">
+      <div class="flex justify-between items-center">
+        <h3 class="text-lg font-bold">Xizmat ma'lumotlari</h3>
+        <button onclick="closeModal('serviceModal')" class="text-slate-400 hover:text-white"><i class="fa-solid fa-xmark text-xl"></i></button>
+      </div>
+      <input type="hidden" id="editServiceId" />
+      <div>
+        <label class="block text-xs text-slate-400 mb-1">Xizmat nomi</label>
+        <input type="text" id="srvName" placeholder="✂️ Soch olish" class="w-full bg-slate-900 border border-slate-700 rounded-xl px-3 py-2 text-sm text-white" />
+      </div>
+      <div>
+        <label class="block text-xs text-slate-400 mb-1">Narxi (faqat raqam, so'mda)</label>
+        <input type="number" id="srvPrice" placeholder="60000" class="w-full bg-slate-900 border border-slate-700 rounded-xl px-3 py-2 text-sm text-white" />
+      </div>
+      <div>
+        <label class="block text-xs text-slate-400 mb-1">Davomiyligi</label>
+        <select id="srvDuration" class="w-full bg-slate-900 border border-slate-700 rounded-xl px-3 py-2 text-sm text-white">
+          <option value="30">30 daqiqa (1 ta slot)</option>
+          <option value="60">60 daqiqa (2 ta slot)</option>
+          <option value="90">90 daqiqa (3 ta slot)</option>
+        </select>
+      </div>
+      <button onclick="saveService()" class="w-full py-2.5 bg-amber-500 hover:bg-amber-600 text-slate-950 font-bold rounded-xl text-sm">
+        Saqlash
+      </button>
+    </div>
+  </div>
+
+  <!-- FIREBASE SDK -->
+  <script type="module">
+    import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
+    import { getDatabase, ref, onValue, set, update, remove, get, runTransaction } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-database.js";
+
+    let db = null;
+    let settings = {};
+    let daySlots = {};
+    let allUsers = {};
+    let selectedSlotCtx = null;
+
+    const WEEKDAYS = ["Dushanba", "Seshanba", "Chorshanba", "Payshanba", "Juma", "Shanba", "Yakshanba"];
+
+    // Auto-fill saved DB URL
+    const savedUrl = localStorage.getItem("fb_db_url");
+    if (savedUrl) document.getElementById("fbUrlInput").value = savedUrl;
+
+    document.getElementById("loginForm").addEventListener("submit", async (e) => {
+      e.preventDefault();
+      const url = document.getElementById("fbUrlInput").value.trim().replace(/\/$/, "");
+      const pass = document.getElementById("adminPassInput").value.trim();
+      const errEl = document.getElementById("authError");
+      errEl.classList.add("hidden");
+
+      try {
+        const app = initializeApp({ databaseURL: url });
+        db = getDatabase(app);
+
+        const passRef = ref(db, "admin_auth/password");
+        const snap = await get(passRef);
+        if (!snap.exists()) {
+          await set(passRef, pass);
+        } else if (snap.val() !== pass) {
+          errEl.textContent = "❌ Parol noto'g'ri!";
+          errEl.classList.remove("hidden");
+          return;
+        }
+
+        localStorage.setItem("fb_db_url", url);
+        document.getElementById("authScreen").classList.add("hidden");
+        document.getElementById("dashboardScreen").classList.remove("hidden");
+        initDashboard();
+      } catch (err) {
+        errEl.textContent = "Firebase ulanish xatosi: " + err.message;
+        errEl.classList.remove("hidden");
+      }
+    });
+
+    function initDashboard() {
+      const dateInput = document.getElementById("scheduleDate");
+      dateInput.value = new Date().toISOString().split("T")[0];
+      dateInput.addEventListener("change", () => subscribeDaySlots(dateInput.value));
+
+      // Listen Settings
+      onValue(ref(db, "settings"), (snap) => {
+        settings = snap.val() || {};
+        renderSettingsUI();
+        renderBarbersUI();
+        renderServicesUI();
+        renderMatrix();
+      });
+
+      // Listen Users
+      onValue(ref(db, "users"), (snap) => {
+        allUsers = snap.val() || {};
+        renderClientsUI();
+      });
+
+      subscribeDaySlots(dateInput.value);
+    }
+
+    let unsubscribeSlots = null;
+    function subscribeDaySlots(dateStr) {
+      if (unsubscribeSlots) unsubscribeSlots();
+      unsubscribeSlots = onValue(ref(db, `slots/${dateStr}`), (snap) => {
+        daySlots = snap.val() || {};
+        renderMatrix();
+      });
+    }
+
+    window.setToday = () => {
+      const today = new Date().toISOString().split("T")[0];
+      document.getElementById("scheduleDate").value = today;
+      subscribeDaySlots(today);
+    };
+
+    window.logout = () => location.reload();
+
+    window.switchTab = (tab) => {
+      ["schedule", "barbers", "services", "hours", "clients"].forEach(t => {
+        document.getElementById(`view-${t}`).classList.add("hidden");
+        const btn = document.getElementById(`tab-${t}`);
+        btn.classList.remove("bg-amber-500", "text-slate-950");
+        btn.classList.add("text-slate-300");
+      });
+      document.getElementById(`view-${tab}`).classList.remove("hidden");
+      const activeBtn = document.getElementById(`tab-${tab}`);
+      activeBtn.classList.add("bg-amber-500", "text-slate-950");
+      activeBtn.classList.remove("text-slate-300");
+    };
+
+    function generateTimeSlots(start, end, step) {
+      const list = [];
+      let [h, m] = start.split(":").map(Number);
+      const [eh, em] = end.split(":").map(Number);
+      let curr = h * 60 + m;
+      const endMin = eh * 60 + em;
+      while (curr < endMin) {
+        const hh = String(Math.floor(curr / 60)).padStart(2, "0");
+        const mm = String(curr % 60).padStart(2, "0");
+        list.push(`${hh}:${mm}`);
+        curr += step;
+      }
+      return list;
+    }
+
+    function renderMatrix() {
+      const wh = settings.work_hours || { start: "09:00", end: "21:00", slot_step_minutes: 30 };
+      const barbers = Object.values(settings.barbers || {});
+      const slots = generateTimeSlots(wh.start, wh.end, Number(wh.slot_step_minutes || 30));
+
+      // Header
+      const head = document.getElementById("matrixHead");
+      head.innerHTML = `<th class="p-4 w-24 border-r border-slate-800">Vaqt</th>` +
+        barbers.map(b => `
+          <th class="p-4 min-w-[210px] border-r border-slate-800">
+            <div class="flex items-center justify-between">
+              <span class="text-white font-bold">${b.name}</span>
+              <span class="text-[10px] px-2 py-0.5 rounded-full ${b.active !== false ? 'bg-emerald-500/20 text-emerald-400' : 'bg-rose-500/20 text-rose-400'}">
+                ${b.active !== false ? 'Faol' : 'Dam olishda'}
+              </span>
+            </div>
+          </th>
+        `).join("");
+
+      // Body & Stats
+      let totalBookings = 0;
+      let totalRevenue = 0;
+      const body = document.getElementById("matrixBody");
+
+      body.innerHTML = slots.map(t => {
+        const isLunch = wh.lunch_start && wh.lunch_end && (t >= wh.lunch_start && t < wh.lunch_end);
+        const cells = barbers.map(b => {
+          const info = (daySlots[b.id] || {})[t];
+          if (info && info.status !== "cancelled") {
+            if (info.is_main_slot) {
+              totalBookings++;
+              totalRevenue += Number(info.price || 0);
+            }
+            const isBlock = info.user_id === -1;
+            return `
+              <td onclick="openBookedSlot('${b.id}', '${b.name}', '${t}')"
+                  class="p-2.5 border-r border-slate-800/70 cursor-pointer transition hover:brightness-110">
+                <div class="p-2.5 rounded-xl ${isBlock ? 'bg-slate-800 border border-slate-600' : 'bg-rose-500/20 border border-rose-500/40'}">
+                  <div class="flex justify-between items-center text-xs font-bold ${isBlock ? 'text-slate-300' : 'text-rose-300'}">
+                    <span>${info.user_name}</span>
+                    <span>${info.is_main_slot ? '' : '↳ davomi'}</span>
+                  </div>
+                  <div class="text-[11px] text-slate-300 mt-0.5">${info.service}</div>
+                  ${info.phone && info.phone !== '—' ? `<div class="text-[11px] text-amber-400 mt-0.5"><i class="fa-solid fa-phone mr-1"></i>${info.phone}</div>` : ''}
+                </div>
+              </td>
+            `;
+          }
+
+          if (isLunch) {
+            return `<td class="p-2.5 border-r border-slate-800/70 bg-slate-900/50 text-center text-xs text-slate-500 italic">🍽 Tushlik</td>`;
+          }
+
+          return `
+            <td onclick="openFreeSlot('${b.id}', '${b.name}', '${t}')"
+                class="p-2.5 border-r border-slate-800/70 cursor-pointer group hover:bg-emerald-500/10 transition">
+              <div class="py-2 px-3 rounded-xl border border-dashed border-slate-700 group-hover:border-emerald-500/50 text-center text-xs text-slate-500 group-hover:text-emerald-400">
+                + Bo'sh (Yozish / Yopish)
+              </div>
+            </td>
+          `;
+        }).join("");
+
+        return `<tr><td class="p-4 font-mono font-bold text-slate-300 border-r border-slate-800 bg-slate-900/40">${t}</td>${cells}</tr>`;
+      }).join("");
+
+      document.getElementById("statBookings").textContent = `${totalBookings} ta`;
+      document.getElementById("statRevenue").textContent = `${totalRevenue.toLocaleString("ru-RU")} so'm`;
+    }
+
+    // Slot Modals
+    window.openFreeSlot = (barberId, barberName, timeStr) => {
+      const dateStr = document.getElementById("scheduleDate").value;
+      selectedSlotCtx = { barberId, barberName, dateStr, timeStr };
+      document.getElementById("slotModalTitle").textContent = "Bo'sh vaqtni band qilish";
+      document.getElementById("slotModalSub").textContent = `${dateStr} | ${timeStr} — ${barberName}`;
+      document.getElementById("slotFreeForm").classList.remove("hidden");
+      document.getElementById("slotBookedInfo").classList.add("hidden");
+
+      const srvSelect = document.getElementById("manualService");
+      srvSelect.innerHTML = Object.values(settings.services || {}).map(s =>
+        `<option value="${s.id}">${s.name} (${Number(s.price).toLocaleString()} so'm - ${s.duration} daq)</option>`
+      ).join("");
+
+      openModal("slotModal");
+    };
+
+    window.toggleManualFields = () => {
+      const type = document.getElementById("manualType").value;
+      document.getElementById("offlineClientFields").classList.toggle("hidden", type === "block");
+    };
+
+    window.submitManualSlot = async () => {
+      const { barberId, barberName, dateStr, timeStr } = selectedSlotCtx;
+      const type = document.getElementById("manualType").value;
+      const step = Number((settings.work_hours || {}).slot_step_minutes || 30);
+
+      let duration = 30;
+      let srvName = "🔒 Admin yopgan (Tanaffus)";
+      let srvPrice = 0;
+      let clientName = "Band (Admin)";
+      let clientPhone = "—";
+
+      if (type === "offline") {
+        const srvId = document.getElementById("manualService").value;
+        const srv = (settings.services || {})[srvId];
+        duration = Number(srv.duration || 30);
+        srvName = srv.name;
+        srvPrice = Number(srv.price || 0);
+        clientName = document.getElementById("manualName").value.trim() || "Offline Mijoz";
+        clientPhone = document.getElementById("manualPhone").value.trim() || "—";
+      }
+
+      const blocks = Math.max(1, Math.floor(duration / step));
+      const [h, m] = timeStr.split(":").map(Number);
+      const blockTimes = [];
+      for (let i = 0; i < blocks; i++) {
+        const tot = h * 60 + m + i * step;
+        blockTimes.push(`${String(Math.floor(tot / 60)).padStart(2, "0")}:${String(tot % 60).padStart(2, "0")}`);
+      }
+
+      const bookingId = `ADM-${Date.now()}`;
+      const slotsRef = ref(db, `slots/${dateStr}/${barberId}`);
+
+      try {
+        await runTransaction(slotsRef, (curr) => {
+          if (!curr) curr = {};
+          for (const bt of blockTimes) {
+            if (curr[bt] && curr[bt].status !== "cancelled") {
+              throw new Error("Bu vaqt oralig'ida band qilingan slot bor!");
+            }
+          }
+          blockTimes.forEach((bt, idx) => {
+            curr[bt] = {
+              booking_id: bookingId,
+              status: "confirmed",
+              is_main_slot: idx === 0,
+              duration,
+              service: srvName,
+              price: srvPrice,
+              user_id: -1,
+              user_name: clientName,
+              phone: clientPhone,
+              source: "admin_web",
+              created_at: new Date().toISOString()
+            };
+          });
+          return curr;
+        });
+        closeModal("slotModal");
+      } catch (err) {
+        alert(err.message);
+      }
+    };
+
+    window.openBookedSlot = (barberId, barberName, timeStr) => {
+      const dateStr = document.getElementById("scheduleDate").value;
+      const info = (daySlots[barberId] || {})[timeStr];
+      selectedSlotCtx = { barberId, dateStr, bookingId: info.booking_id, userId: info.user_id };
+
+      document.getElementById("slotModalTitle").textContent = "Band qilingan vaqt";
+      document.getElementById("slotModalSub").textContent = `${dateStr} | ${timeStr} — ${barberName}`;
+      document.getElementById("slotFreeForm").classList.add("hidden");
+      document.getElementById("slotBookedInfo").classList.remove("hidden");
+
+      document.getElementById("bookedDetails").innerHTML = `
+        <p><span class="text-slate-400">Mijoz:</span> <b>${info.user_name}</b></p>
+        <p><span class="text-slate-400">Telefon:</span> <b>${info.phone}</b></p>
+        <p><span class="text-slate-400">Xizmat:</span> <b>${info.service}</b></p>
+        <p><span class="text-slate-400">Narxi:</span> <b>${Number(info.price || 0).toLocaleString()} so'm</b></p>
+        <p><span class="text-slate-400">Manba:</span> <span class="uppercase text-xs px-2 py-0.5 rounded bg-slate-800">${info.source || 'telegram'}</span></p>
+      `;
+      openModal("slotModal");
+    };
+
+    window.cancelBookedSlot = async () => {
+      const { barberId, dateStr, bookingId, userId } = selectedSlotCtx;
+      const slots = daySlots[barberId] || {};
+      for (const [tKey, val] of Object.entries(slots)) {
+        if (val.booking_id === bookingId) {
+          await remove(ref(db, `slots/${dateStr}/${barberId}/${tKey}`));
+        }
+      }
+      if (userId && userId > 0) {
+        await update(ref(db, `user_bookings/${userId}/${bookingId}`), { status: "cancelled" });
+      }
+      closeModal("slotModal");
+    };
+
+    // Barbers CRUD
+    function renderBarbersUI() {
+      const grid = document.getElementById("barbersGrid");
+      const barbers = Object.values(settings.barbers || {});
+      grid.innerHTML = barbers.map(b => `
+        <div class="glass p-5 rounded-2xl flex flex-col justify-between space-y-4">
+          <div>
+            <div class="flex justify-between items-start">
+              <h3 class="font-bold text-lg text-white">${b.name}</h3>
+              <button onclick="toggleBarberActive('${b.id}', ${b.active !== false})"
+                class="text-xs px-2.5 py-1 rounded-full font-semibold ${b.active !== false ? 'bg-emerald-500/20 text-emerald-400' : 'bg-rose-500/20 text-rose-400'}">
+                ${b.active !== false ? '● Ishda' : '● Dam olishda'}
+              </button>
+            </div>
+            <p class="text-xs text-amber-400 mt-1">${b.experience || ''}</p>
+            <p class="text-sm text-slate-300 mt-2">${b.specialty || ''}</p>
+          </div>
+          <div class="flex gap-2 pt-2 border-t border-slate-800">
+            <button onclick="openBarberModal('${b.id}')" class="flex-1 py-2 bg-slate-800 hover:bg-slate-700 rounded-xl text-xs font-semibold">
+              <i class="fa-solid fa-pen mr-1"></i> Tahrirlash
+            </button>
+            <button onclick="deleteBarber('${b.id}')" class="px-3 py-2 bg-rose-500/20 hover:bg-rose-600 text-rose-300 hover:text-white rounded-xl text-xs">
+              <i class="fa-solid fa-trash"></i>
+            </button>
+          </div>
+        </div>
+      `).join("");
+    }
+
+    window.openBarberModal = (id = "") => {
+      document.getElementById("editBarberId").value = id;
+      const b = id ? (settings.barbers || {})[id] : {};
+      document.getElementById("barberName").value = b.name || "";
+      document.getElementById("barberSpec").value = b.specialty || "";
+      document.getElementById("barberExp").value = b.experience || "";
+      openModal("barberModal");
+    };
+
+    window.saveBarber = async () => {
+      const id = document.getElementById("editBarberId").value || `b_${Date.now()}`;
+      const existing = (settings.barbers || {})[id] || {};
+      await set(ref(db, `settings/barbers/${id}`), {
+        id,
+        name: document.getElementById("barberName").value.trim(),
+        specialty: document.getElementById("barberSpec").value.trim(),
+        experience: document.getElementById("barberExp").value.trim(),
+        active: existing.active !== undefined ? existing.active : true
+      });
+      closeModal("barberModal");
+    };
+
+    window.toggleBarberActive = async (id, current) => {
+      await update(ref(db, `settings/barbers/${id}`), { active: !current });
+    };
+
+    window.deleteBarber = async (id) => {
+      if (confirm("Ushbu barberni o'chirmoqchimisiz?")) {
+        await remove(ref(db, `settings/barbers/${id}`));
+      }
+    };
+
+    // Services CRUD
+    function renderServicesUI() {
+      const grid = document.getElementById("servicesGrid");
+      const services = Object.values(settings.services || {});
+      grid.innerHTML = services.map(s => `
+        <div class="glass p-5 rounded-2xl flex flex-col justify-between space-y-4">
+          <div>
+            <h3 class="font-bold text-lg text-white">${s.name}</h3>
+            <p class="text-2xl font-bold text-amber-400 mt-2">${Number(s.price).toLocaleString()} so'm</p>
+            <p class="text-xs text-slate-400 mt-1"><i class="fa-regular fa-clock mr-1"></i> Davomiyligi: ${s.duration} daqiqa</p>
+          </div>
+          <div class="flex gap-2 pt-2 border-t border-slate-800">
+            <button onclick="openServiceModal('${s.id}')" class="flex-1 py-2 bg-slate-800 hover:bg-slate-700 rounded-xl text-xs font-semibold">
+              <i class="fa-solid fa-pen mr-1"></i> Tahrirlash
+            </button>
+            <button onclick="deleteService('${s.id}')" class="px-3 py-2 bg-rose-500/20 hover:bg-rose-600 text-rose-300 hover:text-white rounded-xl text-xs">
+              <i class="fa-solid fa-trash"></i>
+            </button>
+          </div>
+        </div>
+      `).join("");
+    }
+
+    window.openServiceModal = (id = "") => {
+      document.getElementById("editServiceId").value = id;
+      const s = id ? (settings.services || {})[id] : {};
+      document.getElementById("srvName").value = s.name || "";
+      document.getElementById("srvPrice").value = s.price || "";
+      document.getElementById("srvDuration").value = s.duration || 30;
+      openModal("serviceModal");
+    };
+
+    window.saveService = async () => {
+      const id = document.getElementById("editServiceId").value || `s_${Date.now()}`;
+      await set(ref(db, `settings/services/${id}`), {
+        id,
+        name: document.getElementById("srvName").value.trim(),
+        price: Number(document.getElementById("srvPrice").value),
+        duration: Number(document.getElementById("srvDuration").value)
+      });
+      closeModal("serviceModal");
+    };
+
+    window.deleteService = async (id) => {
+      if (confirm("Ushbu xizmatni o'chirmoqchimisiz?")) {
+        await remove(ref(db, `settings/services/${id}`));
+      }
+    };
+
+    // General Settings & Work Hours
+    function renderSettingsUI() {
+      const wh = settings.work_hours || {};
+      const info = settings.shop_info || {};
+      document.getElementById("headerShopName").textContent = info.name || "Barbershop";
+      document.getElementById("cfgStart").value = wh.start || "09:00";
+      document.getElementById("cfgEnd").value = wh.end || "21:00";
+      document.getElementById("cfgLunchStart").value = wh.lunch_start || "";
+      document.getElementById("cfgLunchEnd").value = wh.lunch_end || "";
+      document.getElementById("cfgShopName").value = info.name || "";
+      document.getElementById("cfgAddress").value = info.address || "";
+      document.getElementById("cfgPhone").value = info.phone || "";
+
+      const closed = wh.closed_weekdays || [];
+      document.getElementById("weekdayCheckboxes").innerHTML = WEEKDAYS.map((day, idx) => `
+        <label class="cursor-pointer select-none px-3 py-1.5 rounded-xl border text-xs font-medium flex items-center gap-2 ${closed.includes(idx) ? 'bg-rose-500/20 border-rose-500 text-rose-300' : 'bg-slate-900 border-slate-700 text-slate-300'}">
+          <input type="checkbox" value="${idx}" class="closed-day-cb hidden" ${closed.includes(idx) ? 'checked' : ''} onchange="this.parentElement.classList.toggle('bg-rose-500/20'); this.parentElement.classList.toggle('border-rose-500');" />
+          ${day}
+        </label>
+      `).join("");
+    }
+
+    window.saveGeneralSettings = async () => {
+      const closedDays = Array.from(document.querySelectorAll(".closed-day-cb:checked")).map(cb => Number(cb.value));
+      await update(ref(db, "settings/work_hours"), {
+        start: document.getElementById("cfgStart").value,
+        end: document.getElementById("cfgEnd").value,
+        lunch_start: document.getElementById("cfgLunchStart").value,
+        lunch_end: document.getElementById("cfgLunchEnd").value,
+        closed_weekdays: closedDays
+      });
+      await update(ref(db, "settings/shop_info"), {
+        name: document.getElementById("cfgShopName").value.trim(),
+        address: document.getElementById("cfgAddress").value.trim(),
+        phone: document.getElementById("cfgPhone").value.trim()
+      });
+      alert("✅ Barcha sozlamalar saqlandi va Telegram botda yangilandi!");
+    };
+
+    // Clients & Ban
+    function renderClientsUI() {
+      const body = document.getElementById("clientsBody");
+      const users = Object.values(allUsers);
+      if (!users.length) {
+        body.innerHTML = `<tr><td colspan="5" class="p-6 text-center text-slate-400">Hali mijozlar yo'q</td></tr>`;
+        return;
+      }
+      body.innerHTML = users.map(u => `
+        <tr>
+          <td class="p-4 font-semibold">${u.full_name || 'Noma\'lum'}</td>
+          <td class="p-4 text-amber-400">${u.phone || '—'}</td>
+          <td class="p-4 text-slate-400">${u.username ? '@' + u.username : '—'}</td>
+          <td class="p-4">
+            <span class="px-2.5 py-1 rounded-full text-xs ${u.banned ? 'bg-rose-500/20 text-rose-400' : 'bg-emerald-500/20 text-emerald-400'}">
+              ${u.banned ? 'Bloklangan' : 'Faol'}
+            </span>
+          </td>
+          <td class="p-4 text-right">
+            <button onclick="toggleBan(${u.user_id}, ${!u.banned})"
+              class="px-3 py-1.5 rounded-lg text-xs font-semibold ${u.banned ? 'bg-emerald-600 text-white' : 'bg-rose-600/80 text-white'}">
+              ${u.banned ? 'Blokdan ochish' : 'Bloklash (Ban)'}
+            </button>
+          </td>
+        </tr>
+      `).join("");
+    }
+
+    window.toggleBan = async (uid, banState) => {
+      await update(ref(db, `users/${uid}`), { banned: banState });
+    };
+
+    window.openModal = (id) => {
+      const el = document.getElementById(id);
+      el.classList.remove("hidden");
+      el.classList.add("flex");
+    };
+    window.closeModal = (id) => {
+      const el = document.getElementById(id);
+      el.classList.add("hidden");
+      el.classList.remove("flex");
+    };
+  </script>
+</body>
+</html>
