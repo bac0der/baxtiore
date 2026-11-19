@@ -13,15 +13,21 @@ TZ = pytz.timezone(os.getenv("TIMEZONE", "Asia/Tashkent"))
 CRED_PATH = os.getenv("FIREBASE_CRED_PATH", "serviceAccountKey.json")
 DB_URL = os.getenv("FIREBASE_DB_URL")
 
+possible_paths = [
+    CRED_PATH,
+    os.path.join("/etc/secrets", os.path.basename(CRED_PATH)),
+]
+
+cred_file = next((p for p in possible_paths if os.path.exists(p)), None)
+
 if not firebase_admin._apps:
-    if os.path.exists(CRED_PATH):
-        cred = credentials.Certificate(CRED_PATH)
+    if cred_file:
+        cred = credentials.Certificate(cred_file)
     elif os.getenv("FIREBASE_CREDENTIALS_JSON"):
         cred = credentials.Certificate(json.loads(os.getenv("FIREBASE_CREDENTIALS_JSON")))
     else:
         raise FileNotFoundError(f"Firebase kalit fayli topilmadi: {CRED_PATH}")
     firebase_admin.initialize_app(cred, {"databaseURL": DB_URL})
-
 
 DEFAULT_SETTINGS = {
     "shop_info": {
