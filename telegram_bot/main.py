@@ -6,6 +6,7 @@ from dotenv import load_dotenv
 from aiohttp import web
 
 from aiogram import Bot, Dispatcher, F, Router
+from aiogram.client.session.aiohttp import AiohttpSession
 from aiogram.filters import CommandStart
 from aiogram.fsm.context import FSMContext
 from aiogram.fsm.state import State, StatesGroup
@@ -462,7 +463,16 @@ async def main():
     if not BOT_TOKEN:
         raise ValueError("BOT_TOKEN topilmadi!")
     await start_web_server()
-    bot = Bot(token=BOT_TOKEN)
+
+    proxy_url = (
+        os.getenv("HTTPS_PROXY")
+        or os.getenv("https_proxy")
+        or os.getenv("HTTP_PROXY")
+        or os.getenv("http_proxy")
+    )
+    session = AiohttpSession(proxy=proxy_url) if proxy_url else None
+
+    bot = Bot(token=BOT_TOKEN, session=session)
     dp = Dispatcher()
     dp.include_router(router)
     asyncio.create_task(reminder_worker(bot))
